@@ -1,0 +1,82 @@
+name: Initialize release signing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  initialize-signing:
+    name: Generate and store release signing credentials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate a stable Android signing key and store encrypted Actions secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pynacl
+
+          STORE_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(36))')"
+          KEY_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(36))')"
+          KEY_ALIAS="mpvex-release"
+
+          keytool -genkeypair -noprompt \
+            -keystore "$RUNNER_TEMP/release-signing.keystore" \
+            -storetype JKS \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=mpvEx New Release, OU=Android, O=mpvEx, C=US"
+
+          export SIGNING_STORE_PASSWORD="$STORE_PASSWORD"
+          export KEY_PASSWORD
+          export SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export SIGNING_KEYSTORE="$(base64 -w0 "$RUNNER_TEMP/release-signing.keystore")"
+
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from nacl.public import PublicKey, SealedBox
+
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          api = f"https://api.github.com/repos/{repository}/actions/secrets"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+          }
+
+          def request(url, method="GET", payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(url, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      return json.loads(response.read()) if response.status != 204 else {}
+              except urllib.error.HTTPError as error:
+                  raise SystemExit(f"GitHub Actions secret API failed with HTTP {error.code}; check workflow-token Actions write access.")
+
+          public_key = request(f"{api}/public-key")
+          key = PublicKey(base64.b64decode(public_key["key"]))
+          encrypt = SealedBox(key)
+
+          for name in ("SIGNING_KEYSTORE", "SIGNING_KEY_ALIAS", "SIGNING_STORE_PASSWORD", "KEY_PASSWORD"):
+              value = os.environ[name].encode()
+              encrypted = base64.b64encode(encrypt.encrypt(value)).decode()
+              request(f"{api}/{name}", "PUT", {
+                  "encrypted_value": encrypted,
+                  "key_id": public_key["key_id"],
+              })
+          print("Release signing credentials were generated and stored as encrypted repository Actions secrets.")
+          PY
+
+          rm -f "$RUNNER_TEMP/release-signing.keystore"
