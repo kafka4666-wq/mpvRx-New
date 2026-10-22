@@ -244,7 +244,7 @@ jobs:
             mpvEx-x86_64-${{ env.VERSION_TAG }}.apk
             mpvEx-playstore-${{ env.VERSION_TAG }}.apk
             mpvEx-fdroid-${{ env.VERSION_TAG }}.apk
-          draft: true
+          draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

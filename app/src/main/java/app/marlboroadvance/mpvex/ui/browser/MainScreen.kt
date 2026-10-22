@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -40,6 +41,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import app.marlboroadvance.mpvex.presentation.Screen
 import app.marlboroadvance.mpvex.ui.browser.folderlist.FolderListScreen
+import app.marlboroadvance.mpvex.ui.browser.localwatch.LocalWatchScreen
 import app.marlboroadvance.mpvex.ui.browser.networkstreaming.NetworkStreamingScreen
 import app.marlboroadvance.mpvex.ui.browser.playlist.PlaylistScreen
 import app.marlboroadvance.mpvex.ui.browser.recentlyplayed.RecentlyPlayedScreen
@@ -168,6 +170,12 @@ object MainScreen : Screen {
               selected = selectedTab == 3,
               onClick = { selectedTab = 3 }
             )
+            NavigationBarItem(
+              icon = { Icon(Icons.Filled.CastConnected, contentDescription = "Local Watch") },
+              label = { Text("Local Watch") },
+              selected = selectedTab == 4,
+              onClick = { selectedTab = 4 }
+            )
           }
         }
       }
@@ -245,6 +253,7 @@ object MainScreen : Screen {
               1 -> RecentlyPlayedScreen.Content()
               2 -> PlaylistScreen.Content()
               3 -> NetworkStreamingScreen.Content()
+              4 -> LocalWatchScreen.Content()
             }
           }
         }

@@ -18,8 +18,8 @@ android {
     applicationId = "app.marlboroadvance.mpvex"
     minSdk = 26
     targetSdk = 36
-    versionCode = 131
-    versionName = "1.3.1"
+    versionCode = 132
+    versionName = "1.3.2"
 
     vectorDrawables {
       useSupportLibrary = true
@@ -207,6 +207,10 @@ dependencies {
   implementation(libs.kotlinx.immutable.collections)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
+  implementation(libs.zxing.core)
 
   implementation(libs.truetype.parser)
   implementation(libs.fsaf)
