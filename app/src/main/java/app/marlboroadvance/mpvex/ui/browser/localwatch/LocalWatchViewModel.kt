@@ -170,7 +170,7 @@ internal fun normalizeLocalWatchUrl(input: String): String? {
   if (candidate.isEmpty()) return null
   if (!candidate.contains("://")) candidate = "http://$candidate"
   val parsed = candidate.toHttpUrlOrNull() ?: return null
-  if (parsed.protocol != "http" && parsed.protocol != "https") return null
+  if (parsed.scheme != "http" && parsed.scheme != "https") return null
   if (parsed.host.isBlank()) return null
   return parsed.newBuilder()
     .username("")
