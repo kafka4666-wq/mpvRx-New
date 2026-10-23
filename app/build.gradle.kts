@@ -15,7 +15,7 @@ android {
   compileSdk = 37
 
   defaultConfig {
-    applicationId = "app.marlboroadvance.mpvex"
+    applicationId = "app.marlboroadvance.mpvrx"
     minSdk = 26
     targetSdk = 36
     versionCode = 132
