@@ -457,7 +457,7 @@ class UpdateManager(
   }
 
   private companion object {
-    const val STABLE_RELEASE_URL = "https://api.github.com/repos/Riteshp2001/mpvRx/releases/latest"
+    const val STABLE_RELEASE_URL = "https://api.github.com/repos/kafka4666-wq/mpvRx-New/releases/latest"
     const val PREVIEW_RELEASE_URL = "https://riteshp2001.github.io/mpvRx/latest.json"
     const val EXPERIMENTAL_RELEASE_URL = "https://riteshp2001.github.io/mpvRx/experimental.json"
     const val LEGACY_IGNORED_VERSION_KEY = "ignored_version"
@@ -470,4 +470,3 @@ class UpdateManager(
     val HEX_DIGITS = "0123456789abcdef".toCharArray()
   }
 }
-

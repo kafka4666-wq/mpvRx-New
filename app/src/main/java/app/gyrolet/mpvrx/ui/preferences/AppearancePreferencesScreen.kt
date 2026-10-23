@@ -934,7 +934,7 @@ object AppearancePreferencesScreen : Screen {
             val showNetworkTab by preferences.showNetworkTab.collectAsState()
             val showJellyfinTab by preferences.showJellyfinTab.collectAsState()
             val savedOrder by preferences.bottomNavigationOrder.collectAsState()
-            val names = listOf("HOME", "MUSIC", "NETWORK", "JELLYFIN", "PROFILE")
+            val names = listOf("HOME", "MUSIC", "NETWORK", "LOCAL_WATCH", "JELLYFIN", "PROFILE")
             val ordered =
               listOf("HOME") +
                 (savedOrder.filter { it in names } + names)
@@ -945,6 +945,7 @@ object AppearancePreferencesScreen : Screen {
                 "HOME" -> ReorderableTabItem(id, stringResource(R.string.pref_nav_home_title), stringResource(R.string.pref_nav_home_summary), true, required = true)
                 "MUSIC" -> ReorderableTabItem(id, stringResource(R.string.pref_nav_music_title), stringResource(R.string.pref_nav_music_summary), showMusicTab, titleRes = R.string.pref_nav_music_title)
                 "NETWORK" -> ReorderableTabItem(id, stringResource(R.string.pref_nav_network_title), stringResource(R.string.pref_nav_network_summary), showNetworkTab, titleRes = R.string.pref_nav_network_title)
+                "LOCAL_WATCH" -> ReorderableTabItem(id, stringResource(R.string.ui_local_watch), stringResource(R.string.local_watch_nav_summary), true, required = true)
                 "JELLYFIN" -> ReorderableTabItem(id, stringResource(R.string.pref_nav_jellyfin_title), stringResource(R.string.pref_nav_jellyfin_summary), showJellyfinTab, titleRes = R.string.pref_nav_jellyfin_title)
                 else -> ReorderableTabItem(id, stringResource(R.string.pref_nav_profile_title), stringResource(R.string.pref_nav_profile_summary), showProfileTab, titleRes = R.string.pref_nav_profile_title)
               }

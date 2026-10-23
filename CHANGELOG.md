@@ -2,6 +2,14 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 3.0.2 — Local Watch
+
+**Release date:** October 23, 2026
+
+- **Local Watch:** Add a dedicated bottom tab to scan a LocalWatch host QR code or paste its link, enter its optional PIN, browse and search the host library, and play videos in mpvRx over the local Wi-Fi or hotspot without using mobile data or internet.
+- **Offline QR scanning:** Decode QR codes on-device with the camera; paste/connect remains available if camera permission is declined.
+- **Fork updates:** Stable update checks now use the mpvRx-New GitHub releases, and the APK version is incremented for installable updates.
+
 ## Unreleased
 
 ### Tree Browser

@@ -168,6 +168,7 @@ object MainScreen : Screen {
     HOME,
     MUSIC,
     NETWORK,
+    LOCAL_WATCH,
     JELLYFIN,
     PROFILE,
   }
@@ -740,6 +741,7 @@ object MainScreen : Screen {
                   }
                 }
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
+                MainTab.LOCAL_WATCH -> app.gyrolet.mpvrx.ui.browser.localwatch.LocalWatchScreen.Content()
                 MainTab.JELLYFIN -> app.gyrolet.mpvrx.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
                 MainTab.PROFILE -> app.gyrolet.mpvrx.ui.browser.profile.ProfileScreen.Content()
               }
@@ -1171,6 +1173,7 @@ internal fun mainNavigationLabel(tab: MainScreen.MainTab): String =
     MainScreen.MainTab.HOME -> R.string.ui_home
     MainScreen.MainTab.MUSIC -> R.string.ui_music
     MainScreen.MainTab.NETWORK -> R.string.ui_network
+    MainScreen.MainTab.LOCAL_WATCH -> R.string.ui_local_watch
     MainScreen.MainTab.JELLYFIN -> R.string.ui_jellyfin
     MainScreen.MainTab.PROFILE -> R.string.ui_profile
   })
@@ -1228,6 +1231,7 @@ internal fun MainTabIcon(
     MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
     MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
     MainScreen.MainTab.NETWORK -> Icons.RoundedFilled.BringYourOwnIp
+    MainScreen.MainTab.LOCAL_WATCH -> Icons.RoundedFilled.Link
     MainScreen.MainTab.JELLYFIN -> null
     MainScreen.MainTab.PROFILE -> Icons.RoundedFilled.AccountCircle
   }
@@ -1268,6 +1272,7 @@ internal fun mainNavigationTabs(
     add(MainScreen.MainTab.HOME)
     if (showMusic) add(MainScreen.MainTab.MUSIC)
     if (showNetwork) add(MainScreen.MainTab.NETWORK)
+    add(MainScreen.MainTab.LOCAL_WATCH)
     if (showJellyfin) add(MainScreen.MainTab.JELLYFIN)
     if (showProfile) add(MainScreen.MainTab.PROFILE)
   }

@@ -596,7 +596,7 @@
   <string name="timer_remaining">%s remaining</string>
   <string name="toast_sleep_timer_ended">Sleep timer ended</string>
   <string name="volume_slider_absolute_value" translatable="false">%d</string>
-  <string name="github_repo_url" translatable="false">https://github.com/Riteshp2001/mpvRx</string>
+  <string name="github_repo_url" translatable="false">https://github.com/kafka4666-wq/mpvRx-New</string>
   <string name="swap_the_volume_and_brightness_slider">Swap volume and brightness slider</string>
   <string name="pref_player_display_reduce_player_animation">Reduce player animation</string>
   <!-- Animation settings -->
@@ -1395,6 +1395,8 @@
   <string name="ui_albums">Albums</string>
   <string name="ui_artists">Artists</string>
   <string name="ui_network">Network</string>
+  <string name="ui_local_watch">Local Watch</string>
+  <string name="local_watch_nav_summary">Scan a host QR code or paste its link to stream over your local network.</string>
   <string name="ui_pinned_folder">Pinned folder</string>
   <string name="ui_pin_videos">Pin videos</string>
   <string name="ui_unpin_videos">Unpin videos</string>
