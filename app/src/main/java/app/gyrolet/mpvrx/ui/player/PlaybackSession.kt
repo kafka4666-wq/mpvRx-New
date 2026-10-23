@@ -175,14 +175,20 @@ object PlaybackSession : MPVLib.EventObserver {
   private val AUDIO_SUBTITLE_TRACK_PROPERTIES = setOf("aid", "sid", "secondary-sid")
 
   /**
-   * Stronger libavformat probing only for local audio/video items whose library duration is
-   * missing. This check never reads files or metadata and is therefore safe on the load path.
-   * Network streams, archive entries, torrents and audiobooks keep their normal startup settings.
+   * Stronger libavformat probing for local items with missing duration and extensionless network
+   * videos that provide an explicit video MIME type. This check never reads media bytes itself.
    */
   private fun shouldProbeMissingDuration(item: PlaybackItem, playableUri: String): Boolean {
     if ((item.durationSeconds ?: 0) > 0 || item.audiobook != null || item.torrentFileIndex != null) return false
     if (item.networkSource != null || item.declaredMediaKind() == DeclaredPlaybackMediaKind.UNKNOWN) return false
     if (app.gyrolet.mpvrx.domain.archive.ZipArchiveMedia.isPlaybackUri(item.originalUri)) return false
+    val uri = Uri.parse(playableUri)
+    if (HttpUtils.isNetworkStream(uri)) {
+      // Some LAN servers expose a generic route such as /stream?id=... rather than a URL ending
+      // in .mp4/.mkv. The host's response MIME type lets libavformat safely probe that content.
+      return item.mimeType?.startsWith("video/", ignoreCase = true) == true &&
+        !HttpUtils.isDirectMediaUrl(uri)
+    }
     return playableUri.startsWith("/") ||
       playableUri.startsWith("file://", ignoreCase = true) ||
       playableUri.startsWith("content://", ignoreCase = true) ||

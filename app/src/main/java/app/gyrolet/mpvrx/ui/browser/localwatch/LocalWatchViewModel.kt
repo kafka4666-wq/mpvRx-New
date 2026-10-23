@@ -22,6 +22,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONObject
+import java.net.URLConnection
 import java.util.concurrent.TimeUnit
 
 data class LocalWatchVideo(
@@ -137,9 +138,17 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
       .buildUpon()
       .appendQueryParameter("id", video.id)
       .build()
+    // LocalWatch serves every item from the extensionless /stream endpoint. Pass its MIME type
+    // through the Intent so Rx's player can classify the item before libmpv probes the response.
+    val mimeType =
+      video.mimeType.takeIf { it.startsWith("video/", ignoreCase = true) }
+        ?: URLConnection.guessContentTypeFromName(video.name)
+          ?.takeIf { it.startsWith("video/", ignoreCase = true) }
+        ?: "video/*"
     val cookie = api?.cookieHeader().orEmpty()
-    return Intent(Intent.ACTION_VIEW, url).apply {
+    return Intent(Intent.ACTION_VIEW).apply {
       setClass(getApplication(), app.gyrolet.mpvrx.ui.player.PlayerActivity::class.java)
+      setDataAndType(url, mimeType)
       addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
       putExtra("title", video.name)
       putExtra("launch_source", "local_watch")

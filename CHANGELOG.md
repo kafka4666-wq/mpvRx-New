@@ -2,6 +2,12 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 3.0.3 — Local Watch Playback Fix
+
+**Release date:** October 23, 2026
+
+- **Extensionless LocalWatch streams:** Pass the server's video MIME type into the native player and enable bounded format probing for network video routes such as `/stream?id=…`, fixing streams that remained on “Opening stream…”.
+
 ## 3.0.2 — Local Watch
 
 **Release date:** October 23, 2026
