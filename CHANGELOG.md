@@ -2,6 +2,14 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 3.0.4 — Folder-Based Local Watch
+
+**Release date:** November 11, 2026
+
+- **Browse LocalWatch by folder:** Show nested folders with breadcrumbs and a separate video list for each folder. Older hosts remain compatible and continue to show a flat list.
+- **Episode navigation:** Queue the selected folder's videos in order so the player's Previous and Next controls move between episodes in that folder, preserving the host PIN cookie for stream requests.
+- **Companion server:** Add safe root-relative folder paths to the LocalWatch Server Folders API for folder-aware clients.
+
 ## 3.0.3 — Local Watch Playback Fix
 
 **Release date:** October 23, 2026
@@ -17,11 +25,6 @@ These notes are written in plain English and focus on what changed for real use.
 - **Fork updates:** Stable update checks now use the mpvRx-New GitHub releases, and the APK version is incremented for installable updates.
 
 ## Unreleased
-
-### Local Watch
-
-- **Folder browsing:** Show the selected LocalWatch library as nested folders, with breadcrumbs and a separate video list for each folder. The client remains compatible with older hosts, which continue to show a flat list.
-- **Episode navigation:** Launch each folder's videos as an ordered playback queue so the player's Previous and Next controls move between episodes in that folder, preserving the host PIN cookie for every stream request.
 
 ### Tree Browser
 
