@@ -7,6 +7,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.gyrolet.mpvrx.ui.player.PlaybackItem
+import app.gyrolet.mpvrx.ui.player.PlayerActivity
+import app.gyrolet.mpvrx.ui.player.PreparedPlaybackLaunchStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,12 +34,21 @@ data class LocalWatchVideo(
   val size: Long,
   val mimeType: String,
   val modifiedAt: Long,
+  /** Relative to the host's selected library root; old hosts fall back to a flat file name. */
+  val relativePath: String = name,
+)
+
+data class LocalWatchFolder(
+  val path: String,
+  val name: String,
+  val videoCount: Int,
 )
 
 data class LocalWatchUiState(
   val address: String,
   val serverBase: String? = null,
   val videos: List<LocalWatchVideo> = emptyList(),
+  val supportsFolders: Boolean = false,
   val connecting: Boolean = false,
   val loading: Boolean = false,
   val pinRequired: Boolean = false,
@@ -64,7 +76,7 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
       val client = LocalWatchApi(base)
       api = client
       _state.update {
-        it.copy(address = base, serverBase = base, connecting = true, loading = false, pinRequired = false, pin = "", videos = emptyList(), error = null)
+        it.copy(address = base, serverBase = base, connecting = true, loading = false, pinRequired = false, pin = "", videos = emptyList(), supportsFolders = false, error = null)
       }
       preferences.edit().putString("address", base).apply()
       try {
@@ -110,8 +122,8 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
     viewModelScope.launch {
       _state.update { it.copy(loading = true, error = null) }
       try {
-        val videos = withContext(Dispatchers.IO) { client.fetchVideos() }
-        _state.update { it.copy(videos = videos, loading = false, pinRequired = false) }
+        val library = withContext(Dispatchers.IO) { client.fetchLibrary() }
+        _state.update { it.copy(videos = library.videos, supportsFolders = library.supportsFolders, loading = false, pinRequired = false) }
       } catch (error: Exception) {
         _state.update {
           it.copy(loading = false, error = error.message ?: "Unable to refresh the LocalWatch library.")
@@ -123,8 +135,8 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
   private suspend fun loadVideos(client: LocalWatchApi) {
     _state.update { it.copy(connecting = false, loading = true, pinRequired = false, error = null) }
     try {
-      val videos = withContext(Dispatchers.IO) { client.fetchVideos() }
-      _state.update { it.copy(connecting = false, loading = false, pinRequired = false, videos = videos, pin = "", error = null) }
+      val library = withContext(Dispatchers.IO) { client.fetchLibrary() }
+      _state.update { it.copy(connecting = false, loading = false, pinRequired = false, videos = library.videos, supportsFolders = library.supportsFolders, pin = "", error = null) }
     } catch (error: Exception) {
       _state.update {
         it.copy(connecting = false, loading = false, error = error.message ?: "Unable to read the LocalWatch library.")
@@ -132,33 +144,77 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
     }
   }
 
-  fun playbackIntent(video: LocalWatchVideo): Intent? {
+  fun foldersInDirectory(directoryPath: String): List<LocalWatchFolder> {
+    val current = normalizeRelativePath(directoryPath)
+    val prefix = if (current.isBlank()) "" else "$current/"
+    val childPaths = _state.value.videos.mapNotNull { video ->
+      val path = normalizeRelativePath(video.relativePath.ifBlank { video.name })
+      if (!path.startsWith(prefix)) return@mapNotNull null
+      val remainder = path.removePrefix(prefix)
+      val childName = remainder.substringBefore('/')
+      if (childName.isBlank() || !remainder.contains('/')) null else "$prefix$childName".trimEnd('/')
+    }.distinct()
+    return childPaths.map { path ->
+      LocalWatchFolder(
+        path = path,
+        name = path.substringAfterLast('/'),
+        videoCount = _state.value.videos.count {
+          normalizeRelativePath(it.relativePath.ifBlank { it.name }).startsWith("$path/")
+        },
+      )
+    }.sortedBy { it.name.lowercase() }
+  }
+
+  fun videosInDirectory(directoryPath: String): List<LocalWatchVideo> {
+    val current = normalizeRelativePath(directoryPath)
+    return _state.value.videos.filter { video ->
+      parentRelativePath(video.relativePath.ifBlank { video.name }) == current
+    }.sortedBy { it.name.lowercase() }
+  }
+
+  fun playbackIntent(video: LocalWatchVideo, folderVideos: List<LocalWatchVideo> = videosInDirectory(parentRelativePath(video.relativePath))): Intent? {
     val base = _state.value.serverBase ?: return null
-    val url = Uri.parse("$base/stream")
-      .buildUpon()
-      .appendQueryParameter("id", video.id)
-      .build()
-    // LocalWatch serves every item from the extensionless /stream endpoint. Pass its MIME type
-    // through the Intent so Rx's player can classify the item before libmpv probes the response.
-    val mimeType =
-      video.mimeType.takeIf { it.startsWith("video/", ignoreCase = true) }
-        ?: URLConnection.guessContentTypeFromName(video.name)
-          ?.takeIf { it.startsWith("video/", ignoreCase = true) }
-        ?: "video/*"
+    val queueVideos = (folderVideos + video).distinctBy { it.id }
+    val selectedIndex = queueVideos.indexOfFirst { it.id == video.id }.coerceAtLeast(0)
     val cookie = api?.cookieHeader().orEmpty()
+    val headers = buildMap {
+      put("User-Agent", "mpvRx LocalWatch")
+      if (cookie.isNotBlank()) put("Cookie", cookie)
+    }
+    val queueItems = queueVideos.map { entry ->
+      val streamUri = Uri.parse("$base/stream").buildUpon().appendQueryParameter("id", entry.id).build()
+      PlaybackItem.fromUri(
+        uri = streamUri.toString(),
+        stableId = "localwatch:${Uri.parse(base).authority}:${entry.id}",
+        title = entry.name,
+        mimeType = videoMimeType(entry),
+        headers = headers,
+      )
+    }
+    val selectedItem = queueItems[selectedIndex]
+    val launchToken = PreparedPlaybackLaunchStore.stage(
+      items = queueItems,
+      currentIndex = selectedIndex,
+      isExplicitQueue = true,
+      isM3u = false,
+    )
     return Intent(Intent.ACTION_VIEW).apply {
-      setClass(getApplication(), app.gyrolet.mpvrx.ui.player.PlayerActivity::class.java)
-      setDataAndType(url, mimeType)
+      setClass(getApplication(), PlayerActivity::class.java)
+      setDataAndType(Uri.parse(selectedItem.originalUri), selectedItem.mimeType ?: "video/*")
       addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
       putExtra("title", video.name)
       putExtra("launch_source", "local_watch")
-      putExtra("headers", if (cookie.isBlank()) {
-        arrayOf("User-Agent", "mpvRx LocalWatch")
-      } else {
-        arrayOf("User-Agent", "mpvRx LocalWatch", "Cookie", cookie)
-      })
+      putExtra("playlist_index", selectedIndex)
+      putExtra("internal_launch", true)
+      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
     }
   }
+
+  private fun videoMimeType(video: LocalWatchVideo): String =
+    video.mimeType.takeIf { it.startsWith("video/", ignoreCase = true) }
+      ?: URLConnection.guessContentTypeFromName(video.name)?.takeIf { it.startsWith("video/", ignoreCase = true) }
+      ?: "video/*"
 
   companion object {
     fun factory(application: Application): ViewModelProvider.Factory =
@@ -173,6 +229,20 @@ class LocalWatchViewModel(application: Application) : AndroidViewModel(applicati
       }
   }
 }
+
+private data class LocalWatchLibrary(
+  val videos: List<LocalWatchVideo>,
+  val supportsFolders: Boolean,
+)
+
+private fun normalizeRelativePath(path: String): String =
+  path.replace('\\', '/')
+    .split('/')
+    .filter { it.isNotBlank() && it != "." && it != ".." }
+    .joinToString("/")
+
+private fun parentRelativePath(path: String): String =
+  normalizeRelativePath(path).substringBeforeLast('/', "")
 
 internal fun normalizeLocalWatchUrl(input: String): String? {
   var candidate = input.trim()
@@ -230,13 +300,15 @@ private class LocalWatchApi(private val baseUrl: String) {
     }
   }
 
-  fun fetchVideos(): List<LocalWatchVideo> {
+  fun fetchLibrary(): LocalWatchLibrary {
     val response = http.newCall(Request.Builder().url("$baseUrl/api/videos").get().build()).execute()
     response.use {
       if (it.code == 401) throw IOException("LocalWatch needs its PIN again. Reconnect to the server.")
       if (!it.isSuccessful) throw IOException("Couldn't load videos (HTTP ${it.code}).")
-      val items = JSONObject(it.body?.string().orEmpty()).optJSONArray("videos") ?: return emptyList()
-      return buildList(items.length()) {
+      val payload = JSONObject(it.body?.string().orEmpty())
+      val supportsFolders = payload.optBoolean("supportsFolders", false)
+      val items = payload.optJSONArray("videos") ?: return LocalWatchLibrary(emptyList(), supportsFolders)
+      val videos = buildList(items.length()) {
         for (index in 0 until items.length()) {
           val item = items.optJSONObject(index) ?: continue
           val id = item.optString("id")
@@ -248,11 +320,13 @@ private class LocalWatchApi(private val baseUrl: String) {
                 size = item.optLong("size", 0L),
                 mimeType = item.optString("mimeType", "video/mp4"),
                 modifiedAt = item.optLong("modifiedAt", 0L),
+                relativePath = item.optString("relativePath", item.optString("name", "Untitled video")),
               )
             )
           }
         }
-      }.sortedBy { it.name.lowercase() }
+      }.sortedBy { it.relativePath.lowercase() }
+      return LocalWatchLibrary(videos = videos, supportsFolders = supportsFolders)
     }
   }
 

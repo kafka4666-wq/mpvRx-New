@@ -80,6 +80,7 @@ object LocalWatchScreen : Screen {
     val clipboard = LocalClipboardManager.current
     var showScanner by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
+    var currentFolderPath by remember(state.serverBase) { mutableStateOf("") }
 
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
       if (granted) showScanner = true
@@ -209,6 +210,10 @@ object LocalWatchScreen : Screen {
         }
 
         if (state.serverBase != null && !state.pinRequired) {
+          val folders = model.foldersInDirectory(currentFolderPath)
+          val folderVideos = model.videosInDirectory(currentFolderPath)
+          val matchingFolders = folders.filter { it.name.contains(searchText, ignoreCase = true) }
+          val matchingVideos = folderVideos.filter { it.name.contains(searchText, ignoreCase = true) }
           item {
             Row(
               modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -216,9 +221,13 @@ object LocalWatchScreen : Screen {
               horizontalArrangement = Arrangement.SpaceBetween,
             ) {
               Column(Modifier.weight(1f)) {
-                Text("Videos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                  "${state.videos.size} available · ${state.serverBase}",
+                  if (currentFolderPath.isBlank()) "Folders and videos" else currentFolderPath.substringAfterLast('/'),
+                  style = MaterialTheme.typography.titleLarge,
+                  fontWeight = FontWeight.Bold,
+                )
+                Text(
+                  "${state.videos.size} videos in library · ${folders.size} folders here · ${state.serverBase}",
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                   maxLines = 1,
@@ -228,6 +237,33 @@ object LocalWatchScreen : Screen {
               if (state.loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
             }
           }
+          if (!state.supportsFolders && state.videos.isNotEmpty()) {
+            item {
+              Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                Text(
+                  "This host version does not share folder names, so its videos appear flat. Install the LocalWatch Server Folders companion to browse folders.",
+                  modifier = Modifier.fillMaxWidth().padding(14.dp),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+              }
+            }
+          }
+          if (currentFolderPath.isNotBlank()) {
+            item {
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { currentFolderPath = ""; searchText = "" }) { Text("Library") }
+                val segments = currentFolderPath.split('/').filter(String::isNotBlank)
+                segments.forEachIndexed { index, segment ->
+                  Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  TextButton(onClick = {
+                    currentFolderPath = segments.take(index + 1).joinToString("/")
+                    searchText = ""
+                  }) { Text(segment, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+              }
+            }
+          }
           if (state.videos.isNotEmpty()) {
             item {
               OutlinedTextField(
@@ -235,59 +271,81 @@ object LocalWatchScreen : Screen {
                 onValueChange = { searchText = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Find a video") },
+                label = { Text("Find a folder or video here") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
               )
             }
-            val filtered = state.videos.filter { it.name.contains(searchText, ignoreCase = true) }
-            if (filtered.isEmpty()) {
-              item { Text("No videos match your search.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
-            } else {
-              items(filtered, key = { it.id }) { video ->
-                Card(
-                  modifier = Modifier.fillMaxWidth().clickable {
-                    model.playbackIntent(video)?.let { intent -> context.startActivity(intent) }
-                  },
-                  colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                  shape = RoundedCornerShape(18.dp),
-                ) {
-                  Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                  ) {
-                    Surface(
-                      shape = RoundedCornerShape(14.dp),
-                      color = MaterialTheme.colorScheme.primaryContainer,
-                      modifier = Modifier.size(48.dp),
-                    ) {
-                      Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                      }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                      Text(video.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                      Spacer(Modifier.height(3.dp))
-                      Text(
-                        "${Formatter.formatShortFileSize(context, video.size)} · ${video.mimeType}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                      )
-                    }
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play ${video.name}", tint = MaterialTheme.colorScheme.primary)
+          }
+          items(matchingFolders, key = { "folder:${it.path}" }) { folder ->
+            Card(
+              modifier = Modifier.fillMaxWidth().clickable {
+                currentFolderPath = folder.path
+                searchText = ""
+              },
+              colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+              shape = RoundedCornerShape(18.dp),
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(48.dp)) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                   }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                  Text(folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                  Text("${folder.videoCount} videos · open folder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
               }
             }
-          } else if (!state.loading) {
+          }
+          items(matchingVideos, key = { "video:${it.id}" }) { video ->
+            Card(
+              modifier = Modifier.fillMaxWidth().clickable {
+                model.playbackIntent(video, folderVideos)?.let { intent -> context.startActivity(intent) }
+              },
+              colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+              shape = RoundedCornerShape(18.dp),
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(48.dp)) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                  }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                  Text(video.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                  Spacer(Modifier.height(3.dp))
+                  Text(
+                    "${Formatter.formatShortFileSize(context, video.size)} · ${video.mimeType}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                }
+                Icon(Icons.Filled.PlayArrow, contentDescription = "Play ${video.name}", tint = MaterialTheme.colorScheme.primary)
+              }
+            }
+          }
+          if (matchingFolders.isEmpty() && matchingVideos.isEmpty() && !state.loading) {
             item {
               Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                   Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
                   Spacer(Modifier.height(8.dp))
-                  Text("No videos are available", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                  Text(
+                    if (searchText.isNotBlank()) "No matches in this folder" else if (currentFolderPath.isNotBlank()) "This folder has no videos" else "No videos are available",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                  )
                   Text("Choose or rescan a video folder in the LocalWatch host app.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
               }

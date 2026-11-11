@@ -18,6 +18,11 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## Unreleased
 
+### Local Watch
+
+- **Folder browsing:** Show the selected LocalWatch library as nested folders, with breadcrumbs and a separate video list for each folder. The client remains compatible with older hosts, which continue to show a flat list.
+- **Episode navigation:** Launch each folder's videos as an ordered playback queue so the player's Previous and Next controls move between episodes in that folder, preserving the host PIN cookie for every stream request.
+
 ### Tree Browser
 
 - **Immediate file actions:** Deleting or moving files and folders updates Tree mode immediately; renames appear before storage work finishes. Failed or cancelled items return, successful changes remain applied through stale scans, and operation refreshes keep the current list on screen.
